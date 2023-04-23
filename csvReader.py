@@ -6,17 +6,16 @@ import csv
 
 class csvReader:
     masterChannelList = [[]]
-    optionsMapping = {0 : "",
-                      1 : "",
-                      2 : "",
-                      3 : "",
-                      4 : ""}
-    optionsMappingReverse = {}
+    optionsMappingKeyIndex = {}
+    optionsMappingKeyName = {}
     outputsCounts = {}
+    outputsTotals = {}
     outputLabels = {}
+    outputLabelMasterFrame = None
     channelListFrame = None
     currentOutput = None
     options = None
+
     
     
     def __init__(self, root):
@@ -25,6 +24,8 @@ class csvReader:
         s.theme_create('good.TButton','default')
         s.theme_create('bad.TButton','default')
         s.theme_create('good.TLabel','default')
+        s.theme_create('notif.TFrame','default')
+        s.configure('notif.TFrame', background='red', borderwidth=5)
         s.configure('good.TButton',  foreground='white',background='green', )
         s.map('good.TButton',
               background=[('active', '#90EE90')],
@@ -72,20 +73,23 @@ class csvReader:
         
         ttk.Label(master=self.channelListFrame, text="test").grid(column=0, row=0, sticky="nsew")
         
-        #self.makeChannel(self.channelListFrame, 'Streaming', self.sChannels,15)
-        #self.makeChannel(self.channelListFrame, 'Diship', self.dChannels, 10)
-        
         self.options.bind('<<ComboboxSelected>>', self.handle_channels)
         
         #top right panel
         buttonsFrame = ttk.Frame(mainframe)
+        print("buttons Frame %s"%type(buttonsFrame))
         buttonsFrame.grid(column=1, row=0,sticky="new")
         ttk.Button(buttonsFrame, text="Load file", command=self.getFileName).grid(column=0, row=0, sticky=(EW))
         ttk.Button(buttonsFrame, text="reset").grid(column=1, row=0, sticky=(EW))
         #load file button and reset data
         
         #bottom right panel
-        ttk.Label()
+        self.outputLabelMasterFrame = ttk.Frame(mainframe)
+        self.outputLabelMasterFrame.grid(row=1, column=1, sticky="new")
+        self.outputLabelMasterFrame.columnconfigure(0, weight=1)
+        print(type(self.outputLabelMasterFrame))
+        #self.outputLabelMasterFrame.configure(style='notif.TFrame')
+        
         #totals
     
     def handle_channels(self,event):
@@ -132,19 +136,21 @@ class csvReader:
         
     def changeButtons(self,frame, success):
         if success:
+            if not frame.winfo_children()[0]['style'] == 'good.TLabel':
+                #increment for a success
+                self.outputsCounts[self.optionsMappingKeyIndex[self.options.current()]] += 1
+                self.updateTotals(self.optionsMappingKeyIndex[self.options.current()])
             frame.winfo_children()[0].configure(style='good.TLabel')
             frame.winfo_children()[2].configure(style='good.TButton')
-            if(frame.winfo_children()[3] != ''):
+            if(frame.winfo_children()[3]['style'] != ''):
                 frame.winfo_children()[3].configure(style='TButton')
-                self.outputsCounts[self.optionsMappingReverse[self.options.current()]] += 1
-                self.updateTotals()
         else :
             frame.winfo_children()[0].configure(style='bad.TLabel')
-            if(frame.winfo_children()[2] != ''):
-                frame.winfo_children()[2].configure(style='TButton')
-                self.outputsCounts[self.optionsMappingReverse[self.options.current()]] -= 1
-                self.updateTotals()
             frame.winfo_children()[3].configure(style='bad.TButton')
+            if(frame.winfo_children()[2]['style'] == 'good.TButton'):
+                frame.winfo_children()[2].configure(style='TButton')
+                self.outputsCounts[self.optionsMappingKeyIndex[self.options.current()]] -= 1
+                self.updateTotals(self.optionsMappingKeyIndex[self.options.current()])
     def getFileName(self):
         name = fd.askopenfilename(filetypes=[("csv files", ".csv")],initialdir='/home/jason/Documents')
         if name != "":
@@ -165,28 +171,56 @@ class csvReader:
                 self.options['values'] = tuple(tempOptions)
                 self.updateOptionsBindings()
                 self.masterChannelList.append([])
+                self.outputsCounts[outputType] = 0
+                self.outputsTotals[outputType] = 0
+                self.makeOutputLabel(outputType)
+                
             if row[3].lower() == 'false' or row[4].lower() == 'false' or row[5].lower() == 'false' or row[6].lower() == 'false':
                 results = []
                 for i in range(3, 7):
                     results.append(row[i].lower())
-                self.makeChannel(self.channelListFrame, row[0], self.masterChannelList[self.optionsMappingReverse[outputType]], row[1], results)
+                self.makeChannel(self.channelListFrame, row[0], self.masterChannelList[self.optionsMappingKeyName[outputType]], row[1], results)
+                self.outputsTotals[outputType] += 1
             else:
                 self.outputsCounts[outputType] += 1
+                self.outputsTotals[outputType] += 1
+        #print("Options Mapping Key Index %s"% self.optionsMappingKeyIndex)
+        #print("Options Mapping Key Name %s"% self.optionsMappingKeyName)
+        for outputIndex in self.optionsMappingKeyIndex:
+            print("outputIndex: %s"% outputIndex)
+            self.updateTotals(self.optionsMappingKeyIndex[outputIndex])
                         
     def updateOptionsBindings(self):
         i=0
         for value in self.options['values']:
-            self.optionsMapping[i] = value
-            self.optionsMappingReverse[value] = i
+            self.optionsMappingKeyIndex[i] = value
+            self.optionsMappingKeyName[value] = i
             i+=1
-        #print("bindings updated")
-        #print(self.optionsMapping)
-        #print(self.optionsMappingReverse)
         
-    def updateTotals(self):
+    def updateTotals(self, outputTypeName):
+        print("updating Totals")
+        tempframe = self.outputLabels[self.optionsMappingKeyName[outputTypeName]]
+        tempframe.winfo_children()[1].configure(text=" %d/%d"%(self.outputsCounts[outputTypeName], self.outputsTotals[outputTypeName]))
+        if self.outputsCounts[outputTypeName] == self.outputsTotals[outputTypeName]:
+            tempframe.winfo_children()[1].configure(style='good.TLabel')
+        elif tempframe.winfo_children()[1]['style'] != '':
+            tempframe.winfo_children()[1].configure(style='TLabel')
+
+    
+    def makeOutputLabel(self, outputTypeName):
+        print("making output label for %s"%outputTypeName)
+        frame = ttk.Frame(self.outputLabelMasterFrame)
+        ttk.Label(frame, text=outputTypeName).grid(column=0, row=0, sticky="w")
+        ttk.Label(frame, text=" %d/%d"%(self.outputsCounts[outputTypeName], self.outputsTotals[outputTypeName])).grid(column=1, row=0, sticky="e")
+        frame.columnconfigure(0, weight=1)
+        frame.columnconfigure(1, weight=1)
+        frame.grid(column=0, row=self.optionsMappingKeyName[outputTypeName], sticky="ew")
+        self.outputLabels[self.optionsMappingKeyName[outputTypeName]] = frame
+        #print("output labels contents: %s"%str(self.outputLabels))
         
-        temp = "yes"
-        
+    def clearData(self):
+        #TODO
+        return ""
         
 root = Tk()
 csvReader(root)
