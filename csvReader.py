@@ -1,8 +1,9 @@
 from tkinter import *
 from tkinter import filedialog as fd
-from tkinter import ttk
+from tkinter import ttk #pip install tkinter
 import ScrollableFrame as sf
 import csv
+import webbrowser
 
 class csvReader:
     masterChannelList = [[]]
@@ -15,7 +16,15 @@ class csvReader:
     channelListFrame = None
     currentOutput = None
     options = None
-
+    resultsBGColor = '#99ccff'
+    canvasBGColor = '#669999'
+    goodColor = '#33cc33'
+    goodColorLighter = '#99e699'
+    badColor = '#b32400'
+    badColorLighter = '#ff5c33'
+    unknownColor = '#ffff80'
+    unknownColorLighter = '#ffffb3'
+    
     
     
     def __init__(self, root):
@@ -25,23 +34,24 @@ class csvReader:
         s.theme_create('bad.TButton','default')
         s.theme_create('good.TLabel','default')
         s.theme_create('notif.TFrame','default')
-        s.configure('notif.TFrame', background='red', borderwidth=5)
-        s.configure('good.TButton',  foreground='white',background='green', )
-        s.map('good.TButton',
-              background=[('active', '#90EE90')],
-            foreground=[('active', 'white')])
-        s.configure('good.TLabel',  foreground='white',background='green', )
-        s.map('good.TLabel',
-              background=[('active', '#90EE90')],
-            foreground=[('active', 'white')])
-        s.configure('bad.TButton', foreground='white',background='red')
-        s.map('bad.TButton',
-              background=[('active', '#ffcccb')],
-            foreground=[('active', 'white')])
-        s.configure('bad.TLabel', foreground='white',background='red')
-        s.map('bad.TLabel',
-              background=[('active', '#ffcccb')],
-            foreground=[('active', 'white')])
+        s.theme_create('notif.TLabel','default')
+        s.theme_create('unknown.TLabel','default')
+        s.theme_create('unknown.TButton','default')
+        s.configure('unknown.TLabel', background=self.unknownColor)
+        s.configure('notif.TFrame', background=self.resultsBGColor)
+        s.configure('notif.TLabel', background=self.resultsBGColor)
+        s.configure('good.TLabel',  foreground='black', background=self.goodColor)
+        s.configure('bad.TLabel', foreground='white',background=self.badColor)
+        s.configure('notif.TFrame', frameBoarder=2)
+        
+        s.configure('good.TButton',  foreground='black', background=self.goodColor)
+        s.map('good.TButton', background=[('active', self.goodColorLighter)], foreground=[('active', 'black')])
+        
+        s.configure('bad.TButton', foreground='white',background=self.badColor)
+        s.map('bad.TButton', background=[('active', self.badColorLighter)], foreground=[('active', 'white')])
+        
+        s.configure('unknown.TButton', foreground='black',background=self.unknownColor)
+        s.map('unknown.TButton', background=[('active', self.unknownColorLighter)], foreground=[('active', 'black')])
         
 
         print(ttk.Style().theme_names())
@@ -64,14 +74,18 @@ class csvReader:
         
         #bottom left panel
         scrollFrameMaster = sf.ScrollableFrame(mainframe)
+        scrollFrameMaster.changeCanvasColor(self.canvasBGColor)
         self.channelListFrame = scrollFrameMaster.scrollable_frame
         scrollFrameMaster.grid(column=0, row=1, sticky="nsew")
         self.channelListFrame.rowconfigure(0, weight=1)
         self.channelListFrame.columnconfigure(0, weight=1)
+        #self.channelListFrame.configure(borderwidth=2)
         scrollFrameMaster.rowconfigure(0, weight=1)
         scrollFrameMaster.columnconfigure(0,weight=1)
         
-        ttk.Label(master=self.channelListFrame, text="test").grid(column=0, row=0, sticky="nsew")
+        print("self.channelListFrame winfo_width: %d" %self.channelListFrame.winfo_width())
+        #ttk.Label(master=self.channelListFrame, text="test").grid(column=1, row=0, sticky=E)
+        #ttk.Button(self.channelListFrame, text="button",command=self.outputDimensions).grid(column=0, row=0, sticky=E)
         
         self.options.bind('<<ComboboxSelected>>', self.handle_channels)
         
@@ -80,14 +94,13 @@ class csvReader:
         print("buttons Frame %s"%type(buttonsFrame))
         buttonsFrame.grid(column=1, row=0,sticky="new")
         ttk.Button(buttonsFrame, text="Load file", command=self.getFileName).grid(column=0, row=0, sticky=(EW))
-        ttk.Button(buttonsFrame, text="reset").grid(column=1, row=0, sticky=(EW))
+        ttk.Button(buttonsFrame, text="reset", command=self.clearData).grid(column=1, row=0, sticky=(EW))
         #load file button and reset data
         
         #bottom right panel
         self.outputLabelMasterFrame = ttk.Frame(mainframe)
         self.outputLabelMasterFrame.grid(row=1, column=1, sticky="new")
         self.outputLabelMasterFrame.columnconfigure(0, weight=1)
-        print(type(self.outputLabelMasterFrame))
         #self.outputLabelMasterFrame.configure(style='notif.TFrame')
         
         #totals
@@ -108,15 +121,22 @@ class csvReader:
     def gridChannels(self, channels):
         i = 0
         for element in channels:
-            print("gridding %s" %(str(element)))
-            element.grid(column=0, row=i, sticky=(E,W))
-            print("element Style: %s" %element['style'])
+            print("gridding %s" %(str(element[0])))
+            if i %2 == 0:
+                element[0].configure(style='notif.TFrame')
+                element[0].winfo_children()[1].configure(style='notif.TLabel')
+            else:
+                element[0].configure(style='TFrame')
+                element[0].winfo_children()[1].configure(style='TLabel')
+            element[0].grid(column=0, row=i, sticky=("we"))
+            
+            print("element Style: %s" %element[0]['style'])
             i+=1
     
-    def makeChannel(self, parentFrame, name, channels, Channel_number, results):
+    def makeChannel(self, parentFrame, iteration, name, channels, Channel_number, results, link):
         def createFrame():
-            frame = ttk.Frame(parentFrame)
-            ttk.Label(frame, text="Channel %s %s" %(name, Channel_number)).grid(column=0, row=0, sticky=(E, W))
+            url = link
+            frame = ttk.Frame(parentFrame, style='notif.TFrame', padding=2, relief='raised')
             details = ""
             if results[0] == 'false':
                 details += "OCR: false | "
@@ -126,12 +146,14 @@ class csvReader:
                 details += "Motion: false | "
             if results[3] == 'false':
                 details += "Frozen: false | "
-            ttk.Label(frame, text=details).grid(column=1, row=0,sticky=(E))
-            ttk.Button(frame, text="OK", command=lambda : self.changeButtons(frame, True)).grid(column=2, row=0, sticky=(W))
-            ttk.Button(frame, text="BAD", command=lambda: self.changeButtons(frame, False)).grid(column=3, row=0,sticky=(W))
-            frame.columnconfigure(0, weight=1)
-            frame.columnconfigure(1, weight=1)
-            return frame    
+            ttk.Label(frame, text="Iteration: %s | %s %s" %(iteration, name, Channel_number), style='unknown.TLabel').grid(column=0, row=0, sticky=("nsw"))
+            ttk.Label(frame, text=details,style='notif.TLabel').grid(column=1, row=0,sticky=("e"))
+            ttk.Button(frame, text="OK", command=lambda : self.changeButtons(frame, True)).grid(column=2, row=0, sticky=("e"))
+            ttk.Button(frame, text="BAD", command=lambda: self.changeButtons(frame, False)).grid(column=3, row=0,sticky=("e"))
+            ttk.Button(frame, text="Link", command=lambda: self.openURL(link,"I:%s | Chan %s %s" %(iteration, name, Channel_number)), style='unknown.TButton').grid(column=4, row=0, sticky=("e"))
+            frame.columnconfigure(0, weight=10)
+            frame.columnconfigure(1, weight=10)
+            return [frame, url]    
         channels.append(createFrame())
         
     def changeButtons(self,frame, success):
@@ -144,9 +166,11 @@ class csvReader:
             frame.winfo_children()[2].configure(style='good.TButton')
             if(frame.winfo_children()[3]['style'] != ''):
                 frame.winfo_children()[3].configure(style='TButton')
+            frame.winfo_children()[4].configure(style='TButton')
         else :
             frame.winfo_children()[0].configure(style='bad.TLabel')
             frame.winfo_children()[3].configure(style='bad.TButton')
+            frame.winfo_children()[4].configure(style='TButton')
             if(frame.winfo_children()[2]['style'] == 'good.TButton'):
                 frame.winfo_children()[2].configure(style='TButton')
                 self.outputsCounts[self.optionsMappingKeyIndex[self.options.current()]] -= 1
@@ -162,7 +186,7 @@ class csvReader:
         #print("reading file")
         reader = csv.reader(fileD, dialect='excel')
         for row in reader:
-            outputType =row[0].lower()
+            outputType =row[1].lower()
             if outputType == 'output':
                 continue
             if not outputType in self.options['values']:
@@ -177,9 +201,9 @@ class csvReader:
                 
             if row[3].lower() == 'false' or row[4].lower() == 'false' or row[5].lower() == 'false' or row[6].lower() == 'false':
                 results = []
-                for i in range(3, 7):
+                for i in range(5, 9):
                     results.append(row[i].lower())
-                self.makeChannel(self.channelListFrame, row[0], self.masterChannelList[self.optionsMappingKeyName[outputType]], row[1], results)
+                self.makeChannel(self.channelListFrame, row[0], row[1], self.masterChannelList[self.optionsMappingKeyName[outputType]], row[2], results, row[3])
                 self.outputsTotals[outputType] += 1
             else:
                 self.outputsCounts[outputType] += 1
@@ -219,8 +243,27 @@ class csvReader:
         #print("output labels contents: %s"%str(self.outputLabels))
         
     def clearData(self):
-        #TODO
+        self.removeChannels()
+        for element in self.outputLabelMasterFrame.winfo_children():
+            element.grid_forget()
+        self.masterChannelList = [[]]
+        self.optionsMappingKeyIndex = {}
+        self.optionsMappingKeyName = {}
+        self.outputsCounts = {}
+        self.outputsTotals = {}
+        self.outputLabels = {}
+        self.options['values'] = ""
+        self.options.selection_clear()
+        self.updateOptionsBindings()
         return ""
+    def openURL(self, loadUrl, name):
+       webbrowser.open_new_tab(loadUrl)
+       
+    def outputDimensions(self):
+        print("Width: %d, Height %d"%(self.channelListFrame.winfo_width(), self.channelListFrame.winfo_height()))
+        print(self.channelListFrame.grid_size())
+        
+        
         
 root = Tk()
 csvReader(root)
