@@ -23,7 +23,7 @@ class ScrollableFrame(ttk.Frame):
         self.canvas.grid(column=0,row=0, sticky="nsew")
         scrollbar.grid(column=1, row=0, sticky="ns")
     def canvasConfigure(self, e):
-        print("canvas Configure width %d"% e.width)
+        #print("canvas Configure width %d"% e.width)
         self.canvas.itemconfig(self.canvasID, width = e.width-50)
     def changeCanvasColor(self,color):
         self.canvas.configure(bg=color)

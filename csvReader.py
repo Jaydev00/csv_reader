@@ -1,6 +1,7 @@
 from tkinter import *
 from tkinter import filedialog as fd
 from tkinter import ttk #pip install tkinter
+import os
 import ScrollableFrame as sf
 import csv
 import webbrowser
@@ -24,6 +25,7 @@ class csvReader:
     badColorLighter = '#ff5c33'
     unknownColor = '#ffff80'
     unknownColorLighter = '#ffffb3'
+    fileLocation = os.getcwd()
     
     
     
@@ -37,6 +39,8 @@ class csvReader:
         s.theme_create('notif.TLabel','default')
         s.theme_create('unknown.TLabel','default')
         s.theme_create('unknown.TButton','default')
+        s.theme_create('bg.TFrame')
+        s.configure('bg.TFrame', background=self.canvasBGColor)
         s.configure('unknown.TLabel', background=self.unknownColor)
         s.configure('notif.TFrame', background=self.resultsBGColor)
         s.configure('notif.TLabel', background=self.resultsBGColor)
@@ -82,6 +86,7 @@ class csvReader:
         #self.channelListFrame.configure(borderwidth=2)
         scrollFrameMaster.rowconfigure(0, weight=1)
         scrollFrameMaster.columnconfigure(0,weight=1)
+        self.channelListFrame.configure(style='bg.TFrame')
         
         print("self.channelListFrame winfo_width: %d" %self.channelListFrame.winfo_width())
         #ttk.Label(master=self.channelListFrame, text="test").grid(column=1, row=0, sticky=E)
@@ -118,10 +123,11 @@ class csvReader:
         print("removing Channels")
         for element in self.channelListFrame.winfo_children():
             element.grid_remove()
+            
     def gridChannels(self, channels):
         i = 0
         for element in channels:
-            print("gridding %s" %(str(element[0])))
+            #print("gridding %s" %(str(element[0])))
             if i %2 == 0:
                 element[0].configure(style='notif.TFrame')
                 element[0].winfo_children()[1].configure(style='notif.TLabel')
@@ -130,8 +136,9 @@ class csvReader:
                 element[0].winfo_children()[1].configure(style='TLabel')
             element[0].grid(column=0, row=i, sticky=("we"))
             
-            print("element Style: %s" %element[0]['style'])
+            #print("element Style: %s" %element[0]['style'])
             i+=1
+        #self.channelListFrame.grid(row=0, column=0, sticky="new")
     
     def makeChannel(self, parentFrame, iteration, name, channels, Channel_number, results, link):
         def createFrame():
@@ -176,9 +183,13 @@ class csvReader:
                 self.outputsCounts[self.optionsMappingKeyIndex[self.options.current()]] -= 1
                 self.updateTotals(self.optionsMappingKeyIndex[self.options.current()])
     def getFileName(self):
-        name = fd.askopenfilename(filetypes=[("csv files", ".csv")],initialdir='/home/jason/Documents')
+        name = fd.askopenfilename(filetypes=[("csv files", ".csv")],initialdir=self.fileLocation)
         if name != "":
             self.parseCSV(name)
+            self.fileLocation = "/".join(name.replace('\\', '/').split("/")[0:-1])
+            print(self.fileLocation)
+            
+            
     
     def parseCSV(self, fileName):
         fileD = open(file=fileName, newline='')
@@ -199,7 +210,7 @@ class csvReader:
                 self.outputsTotals[outputType] = 0
                 self.makeOutputLabel(outputType)
                 
-            if row[3].lower() == 'false' or row[4].lower() == 'false' or row[5].lower() == 'false' or row[6].lower() == 'false':
+            if row[5].lower() == 'false' or row[6].lower() == 'false' or row[7].lower() == 'false' or row[8].lower() == 'false':
                 results = []
                 for i in range(5, 9):
                     results.append(row[i].lower())
@@ -211,7 +222,7 @@ class csvReader:
         #print("Options Mapping Key Index %s"% self.optionsMappingKeyIndex)
         #print("Options Mapping Key Name %s"% self.optionsMappingKeyName)
         for outputIndex in self.optionsMappingKeyIndex:
-            print("outputIndex: %s"% outputIndex)
+            #print("outputIndex: %s"% outputIndex)
             self.updateTotals(self.optionsMappingKeyIndex[outputIndex])
                         
     def updateOptionsBindings(self):
@@ -222,7 +233,7 @@ class csvReader:
             i+=1
         
     def updateTotals(self, outputTypeName):
-        print("updating Totals")
+        #print("updating Totals")
         tempframe = self.outputLabels[self.optionsMappingKeyName[outputTypeName]]
         tempframe.winfo_children()[1].configure(text=" %d/%d"%(self.outputsCounts[outputTypeName], self.outputsTotals[outputTypeName]))
         if self.outputsCounts[outputTypeName] == self.outputsTotals[outputTypeName]:
@@ -232,7 +243,7 @@ class csvReader:
 
     
     def makeOutputLabel(self, outputTypeName):
-        print("making output label for %s"%outputTypeName)
+        #print("making output label for %s"%outputTypeName)
         frame = ttk.Frame(self.outputLabelMasterFrame)
         ttk.Label(frame, text=outputTypeName).grid(column=0, row=0, sticky="w")
         ttk.Label(frame, text=" %d/%d"%(self.outputsCounts[outputTypeName], self.outputsTotals[outputTypeName])).grid(column=1, row=0, sticky="e")
