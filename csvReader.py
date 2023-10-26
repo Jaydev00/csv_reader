@@ -5,6 +5,11 @@ import os
 import ScrollableFrame as sf
 import csv
 import webbrowser
+import re
+import matplotlib.pyplot as plt
+import numpy as np
+from datetime import date
+from pprint import pprint
 
 class csvReader:
     masterChannelList = [[]]
@@ -26,12 +31,15 @@ class csvReader:
     unknownColor = '#ffff80'
     unknownColorLighter = '#ffffb3'
     fileLocation = os.getcwd()
-    
+    fileprefix = ''
+    labelFont = ('Arial', '16')
+    loadedFileNames = []
     
     
     def __init__(self, root):
+        root.option_add('*TCombobox*Listbox.font', self.labelFont)
         root.geometry("1200x500")
-        s =ttk.Style()
+        s=ttk.Style()
         s.theme_create('good.TButton','default')
         s.theme_create('bad.TButton','default')
         s.theme_create('good.TLabel','default')
@@ -58,7 +66,7 @@ class csvReader:
         s.map('unknown.TButton', background=[('active', self.unknownColorLighter)], foreground=[('active', 'black')])
         
 
-        print(ttk.Style().theme_names())
+        
         mainframe = ttk.Frame(root, padding="3 3 12 12")
         mainframe.grid(row=0, column=0, sticky="nsew")
         
@@ -67,13 +75,14 @@ class csvReader:
         mainframe.columnconfigure(0, weight=1)
         mainframe.rowconfigure(0,weight=0)
         mainframe.rowconfigure(1,weight=1)
-        #top left panel
-        self.options = ttk.Combobox(mainframe)
+        #top left panel 
+        self.options = ttk.Combobox(mainframe, font=self.labelFont)
         self.options.state(["readonly"])
         self.options['values'] =('')
-        #self.options.current(0)
+        print(self.options.winfo_class())
+            #self.options.current(0)
         self.options.selection_clear()
-        self.options.grid(row=0,column=0)
+        self.options.grid(row=0,column=0) #Grid the options
         
         
         #bottom left panel
@@ -88,7 +97,7 @@ class csvReader:
         scrollFrameMaster.columnconfigure(0,weight=1)
         self.channelListFrame.configure(style='bg.TFrame')
         
-        print("self.channelListFrame winfo_width: %d" %self.channelListFrame.winfo_width())
+        #print("self.channelListFrame winfo_width: %d" %self.channelListFrame.winfo_width())
         #ttk.Label(master=self.channelListFrame, text="test").grid(column=1, row=0, sticky=E)
         #ttk.Button(self.channelListFrame, text="button",command=self.outputDimensions).grid(column=0, row=0, sticky=E)
         
@@ -96,10 +105,12 @@ class csvReader:
         
         #top right panel
         buttonsFrame = ttk.Frame(mainframe)
-        print("buttons Frame %s"%type(buttonsFrame))
+        #print("buttons Frame %s"%type(buttonsFrame))
         buttonsFrame.grid(column=1, row=0,sticky="new")
         ttk.Button(buttonsFrame, text="Load file", command=self.getFileName).grid(column=0, row=0, sticky=(EW))
         ttk.Button(buttonsFrame, text="reset", command=self.clearData).grid(column=1, row=0, sticky=(EW))
+        ttk.Button(buttonsFrame, text="refresh", command=self.refreshChannelList).grid(column=0, row=1, sticky=(EW))
+        ttk.Button(buttonsFrame, text="plot", command=self.plotData).grid(column=1, row=1, sticky=(EW))
         #load file button and reset data
         
         #bottom right panel
@@ -116,7 +127,8 @@ class csvReader:
         #print("%s output" %self.options.current())
         self.removeChannels()
         #print("gridding %s"%self.optionsMapping[self.options.current()])
-        self.gridChannels(self.masterChannelList[self.options.current()])    
+        self.gridChannels(self.masterChannelList[self.options.current()])
+        self.options.configure(style='combo.TCombobox')    
             
         
     def removeChannels(self):
@@ -153,7 +165,7 @@ class csvReader:
                 details += "Motion: false | "
             if results[3] == 'false':
                 details += "Frozen: false | "
-            ttk.Label(frame, text="Iteration: %s | %s %s" %(iteration, name, Channel_number), style='unknown.TLabel').grid(column=0, row=0, sticky=("nsw"))
+            ttk.Label(frame, text="Iteration: %s | %s %s" %(iteration, name, Channel_number),font=self.labelFont, style='unknown.TLabel').grid(column=0, row=0, sticky=("nsw"))
             ttk.Label(frame, text=details,style='notif.TLabel').grid(column=1, row=0,sticky=("e"))
             ttk.Button(frame, text="OK", command=lambda : self.changeButtons(frame, True)).grid(column=2, row=0, sticky=("e"))
             ttk.Button(frame, text="BAD", command=lambda: self.changeButtons(frame, False)).grid(column=3, row=0,sticky=("e"))
@@ -182,24 +194,42 @@ class csvReader:
                 frame.winfo_children()[2].configure(style='TButton')
                 self.outputsCounts[self.optionsMappingKeyIndex[self.options.current()]] -= 1
                 self.updateTotals(self.optionsMappingKeyIndex[self.options.current()])
+    
+    def buildFileNamePrefix(self, fileNames):
+        print(fileNames)
+        prefix = ""
+        match = re.search("(\\d+(\\.\\d+)+)", fileNames)
+        if match:
+            prefix += match.group() + "_"
+        if 'NightlyTest' in fileNames:
+            prefix += 'nightly_'
+        elif 'RebootTest' in fileNames:
+            prefix += 'reboot_'
+        return prefix
+    
     def getFileName(self):
         name = fd.askopenfilename(filetypes=[("csv files", ".csv")],initialdir=self.fileLocation)
         if name != "":
-            self.parseCSV(name)
             self.fileLocation = "/".join(name.replace('\\', '/').split("/")[0:-1])
-            print(self.fileLocation)
+            if not name in self.loadedFileNames:
+                self.parseCSV(name)
+                self.loadedFileNames.append(name)
+            else:
+                print("File already loaded")
+            #print("prefix: " + self.prefix)
+            #print("Current Directory:" + self.fileLocation)
             
             
     
     def parseCSV(self, fileName):
+        self.prefix = self.buildFileNamePrefix("/".join(fileName.replace('\\', '/').split("/")[-3:-1]))
         fileD = open(file=fileName, newline='')
-        #print(fileD.readline()) #toss the header
-        #print("reading file")
         reader = csv.reader(fileD, dialect='excel')
         for row in reader:
-            outputType =row[1].lower()
+            outputType = row[1].lower()
             if outputType == 'output':
                 continue
+            outputType = self.prefix + outputType
             if not outputType in self.options['values']:
                 tempOptions = list(self.options['values'])
                 tempOptions.append(outputType)
@@ -224,6 +254,7 @@ class csvReader:
         for outputIndex in self.optionsMappingKeyIndex:
             #print("outputIndex: %s"% outputIndex)
             self.updateTotals(self.optionsMappingKeyIndex[outputIndex])
+        fileD.close()
                         
     def updateOptionsBindings(self):
         i=0
@@ -254,6 +285,7 @@ class csvReader:
         #print("output labels contents: %s"%str(self.outputLabels))
         
     def clearData(self):
+        self.loadedFileNames = []
         self.removeChannels()
         for element in self.outputLabelMasterFrame.winfo_children():
             element.grid_forget()
@@ -268,11 +300,56 @@ class csvReader:
         self.updateOptionsBindings()
         return ""
     def openURL(self, loadUrl, name):
-       webbrowser.open_new_tab(loadUrl)
+        if loadUrl[:7] != 'http://':
+            loadUrl = 'http://' + loadUrl
+        print(loadUrl)
+        webbrowser.open_new_tab(loadUrl)
        
     def outputDimensions(self):
         print("Width: %d, Height %d"%(self.channelListFrame.winfo_width(), self.channelListFrame.winfo_height()))
         print(self.channelListFrame.grid_size())
+        
+    def refreshChannelList(self):
+        filesToLoad = self.loadedFileNames
+        self.clearData()
+        pprint(filesToLoad)
+        for fileName in filesToLoad:
+            self.parseCSV(fileName)
+    
+    def plotData(self):
+        customGreen = (0.166,0.720,0.193,1)
+        #pprint(self.outputsCounts)
+        barTitles = list(self.outputsCounts.keys())
+        passes = np.array(list(self.outputsCounts.values()))
+        totals = np.array(list(self.outputsTotals.values()))
+        fails = np.zeros(passes.size)
+        percentageLabels = []
+        for i in range(len(passes)):
+            fails[i] = totals[i] - passes[i]
+        passFailCounts = {
+            "Pass": passes,
+            "Fail": fails,
+        }
+        
+        for i in range(passes.size):
+            percentageLabels.append(str(np.round(100 * np.round(passes[i] / (totals[i]), 3),3)) + "% \n" + str(passes[i]) + "/" + str(totals[i])) 
+            
+        
+        width = 0.5
+        fig, ax = plt.subplots()
+        bottom = np.zeros(passes.size)
+        for category, weight_count in passFailCounts.items():
+            if category == "Pass":
+                p = ax.bar(barTitles, weight_count, width, label=category, bottom=bottom, color=customGreen ,linewidth=10)
+                ax.bar_label(p, label_type='center', labels=percentageLabels)
+            if category == "Fail":
+                p = ax.bar(barTitles, weight_count, width, label=category, bottom=bottom, color="red",linewidth=10)
+            bottom += weight_count
+        ax.set_title("STB Results for " + str(date.today()))
+        ax.legend(loc="upper right", reverse=True)
+        
+        plt.show(block=True)
+        #pprint(self.outputsTotals)
         
         
         
