@@ -1,3 +1,4 @@
+import tkinter
 from tkinter import *
 from tkinter import filedialog as fd
 from tkinter import ttk #pip install tkinter
@@ -10,6 +11,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 from datetime import date
 from pprint import pprint
+from matplotlib.backend_bases import key_press_handler
+from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg,
+                                               NavigationToolbar2Tk)
+from matplotlib.figure import Figure
 
 class csvReader:
     masterChannelList = [[]]
@@ -336,7 +341,8 @@ class csvReader:
             
         
         width = 0.5
-        fig, ax = plt.subplots()
+        fig = Figure()
+        ax = fig.add_subplot()
         bottom = np.zeros(passes.size)
         for category, weight_count in passFailCounts.items():
             if category == "Pass":
@@ -347,9 +353,31 @@ class csvReader:
             bottom += weight_count
         ax.set_title("STB Results for " + str(date.today()))
         ax.legend(loc="upper right", reverse=True)
+        newWindow = Toplevel(root)
+        newWindow.title("New Window")
+        newWindow.geometry("500x500")
+        canvas = FigureCanvasTkAgg(fig, master=newWindow)  # A tk.DrawingArea.
+        canvas.draw()
+        ax.set_xticklabels(ax.get_xticklabels(), rotation=30, ha='right')
+        toolbar = NavigationToolbar2Tk(canvas, newWindow, pack_toolbar=False)
+        toolbar.update()
+        button_quit = ttk.Button(master=newWindow, text="Quit", command=newWindow.destroy)
+        button_test = ttk.Button(master=newWindow, text="test", command= lambda: self.canvasFillerButtonTest(figure=fig, canvas=canvas))
+        button_quit.pack(side=tkinter.BOTTOM)
+        button_test.pack(side=tkinter.BOTTOM)
+        toolbar.pack(side=tkinter.BOTTOM, fill=tkinter.X)
+        canvas.get_tk_widget().pack(side=tkinter.TOP, fill=tkinter.BOTH, expand=True)
+        print(fig)
         
-        plt.show(block=True)
-        #pprint(self.outputsTotals)
+    def canvasFillerButtonTest(self, canvas, figure):
+        print(figure)
+        print("test Button Pressed")
+        ax = figure.gca()
+        print(ax)
+        ax.cla()
+        canvas.draw()
+        
+
         
         
         
